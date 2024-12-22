@@ -169,21 +169,34 @@ enum Settings {
 	}
 	
 	static func installMouseMonitor() {
+		let doubleClickInterval = NSEvent.doubleClickInterval
+		var lastClickTime = Date.distantPast
+		var pendingClickWorkItem: DispatchWorkItem?
+		
 		self.eventMonitor = NSEvent.addGlobalMonitorForEvents(
-			matching: [NSEvent.EventTypeMask.leftMouseDown, NSEvent.EventTypeMask.rightMouseDown],
+			matching: [.leftMouseDown, .rightMouseDown],
 			handler: { (event: NSEvent) in
 				switch event.type {
-				case .leftMouseDown:
-					log("Left mouse click detected.")
+				case .leftMouseDown, .rightMouseDown:
+					log("\(event.type == .leftMouseDown ? "Left" : "Right") mouse click detected.")
 					if Shortcuts.navigationActive {
-						Thread.sleep(forTimeInterval: 0.5)
-						Navigation.startOCR()
-					}
-				case .rightMouseDown:
-					log("Right mouse click detected.")
-					if Shortcuts.navigationActive {
-						Thread.sleep(forTimeInterval: 0.5)
-						Navigation.startOCR()
+						let currentTime = Date()
+						let timeSinceLastClick = currentTime.timeIntervalSince(lastClickTime)
+						
+						// Cancel any pending action
+						pendingClickWorkItem?.cancel()
+						
+						// Create new work item
+						let workItem = DispatchWorkItem {
+							Thread.sleep(forTimeInterval: 0.5)
+							Navigation.startOCR()
+						}
+						pendingClickWorkItem = workItem
+						
+						// Schedule the action after double-click interval to ensure we execute once, whether it's a single or double click
+						DispatchQueue.main.asyncAfter(deadline: .now() + doubleClickInterval, execute: workItem)
+						
+						lastClickTime = currentTime
 					}
 				default:
 					break
