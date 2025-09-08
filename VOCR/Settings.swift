@@ -13,6 +13,7 @@ import AVFoundation
 enum Settings {
 	
 	static private var eventMonitor: Any?
+	static private var lastClickTime: Date = Date.distantPast
 	static var positionReset = true
 	static var positionalAudio = false
 	static var moveMouse = true
@@ -172,6 +173,17 @@ enum Settings {
 		self.eventMonitor = NSEvent.addGlobalMonitorForEvents(
 			matching: [NSEvent.EventTypeMask.leftMouseDown, NSEvent.EventTypeMask.rightMouseDown],
 			handler: { (event: NSEvent) in
+				let currentTime = Date()
+				let timeSinceLastClick = currentTime.timeIntervalSince(lastClickTime)
+				
+				// Debounce: ignore clicks that occur within 1 second of the last click
+				guard timeSinceLastClick > 1.0 else {
+					log("Mouse click ignored due to debouncing.")
+					return
+				}
+				
+				lastClickTime = currentTime
+				
 				switch event.type {
 				case .leftMouseDown:
 					log("Left mouse click detected.")
